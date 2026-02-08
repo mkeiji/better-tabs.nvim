@@ -1,0 +1,40 @@
+# Compiled files
+*.luac
+*.lua.c
+
+# Neovim specific
+.vimrc
+.vim/
+*.swp
+*.swo
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Editor directories and files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Dependency directories
+node_modules/
+deps/
+build/
+
+# Test coverage
+coverage/
+*.lcov
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Rocks/luarocks specific
+.luacheckcache
+rockspec
