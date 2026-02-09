@@ -1,14 +1,17 @@
-local state         = require("better-tabs.state")
+local state               = require("better-tabs.state")
 
-local M             = {}
+local M                   = {}
 
 ----------------------------------------------------------------------
 -- Config
 ----------------------------------------------------------------------
 
-local LEFT_PADDING  = "  "
-local RIGHT_PADDING = "  "
-local SEP           = "│"
+local LEFT_PADDING        = "  "
+local RIGHT_PADDING       = "  "
+local SEP                 = "│"
+
+local OVERFLOW_LEFT_ICON  = "‹"
+local OVERFLOW_RIGHT_ICON = "›"
 
 ----------------------------------------------------------------------
 -- Highlights
@@ -46,6 +49,18 @@ local function setup_highlights()
     vim.api.nvim_set_hl(0, "BetterTabsSeparator", {
         fg = comment.fg or fg,
         bg = bg,
+    })
+
+    vim.api.nvim_set_hl(0, "BetterTabsOverflow", {
+        fg = comment.fg or fg,
+        bg = bg,
+        italic = true,
+    })
+
+    vim.api.nvim_set_hl(0, "BetterTabsOverflowCount", {
+        fg = comment.fg or fg,
+        bg = bg,
+        bold = true,
     })
 
     vim.api.nvim_set_hl(0, "BetterTabsBorder", {
@@ -96,6 +111,38 @@ local function format_diagnostics(bufnr)
 end
 
 ----------------------------------------------------------------------
+-- Render helpers
+----------------------------------------------------------------------
+
+local function render_buffer(buf, is_active)
+    local name = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(buf), ":t")
+    if name == "" then return nil end
+
+    local hl = is_active
+        and "%#BetterTabsActive#"
+        or "%#BetterTabsInactive#"
+
+    local parts = { hl .. name .. "%*" }
+
+    local diags = format_diagnostics(buf)
+    if diags ~= "" then
+        table.insert(parts, hl .. diags .. "%*")
+    end
+
+    if vim.bo[buf].modified then
+        table.insert(parts, " %#BetterTabsModified#[+]%*")
+    end
+
+    local text = table.concat(parts, "")
+    local width = vim.fn.strdisplaywidth(name .. diags .. (vim.bo[buf].modified and " [+]" or ""))
+
+    return {
+        text  = text,
+        width = width,
+    }
+end
+
+----------------------------------------------------------------------
 -- Winbar rendering
 ----------------------------------------------------------------------
 
@@ -105,55 +152,94 @@ function M.render_winbar(win)
         return ""
     end
 
-    local parts = {}
+    local win_width = vim.api.nvim_win_get_width(win)
+    local items = {}
 
-    -- Left padding
+    for i, buf in ipairs(st.buffers) do
+        if vim.api.nvim_buf_is_valid(buf) then
+            local item = render_buffer(buf, i == st.index)
+            if item then
+                item.index = i
+                table.insert(items, item)
+            end
+        end
+    end
+
+    if #items == 0 then
+        return ""
+    end
+
+    local sepw     = vim.fn.strdisplaywidth(" " .. SEP .. " ")
+    local overflow = vim.fn.strdisplaywidth(" ‹ +99 ")
+
+    -- reserve space for overflow on both sides
+    local used     =
+        vim.fn.strdisplaywidth(LEFT_PADDING .. RIGHT_PADDING) + 2 +
+        items[st.index].width +
+        overflow * 2
+
+    local start    = st.index
+    local finish   = st.index
+
+    -- Expand around active buffer
+    while true do
+        local added = false
+
+        if start > 1 and used + sepw + items[start - 1].width <= win_width then
+            start = start - 1
+            used = used + sepw + items[start].width
+            added = true
+        end
+
+        if finish < #items and used + sepw + items[finish + 1].width <= win_width then
+            finish = finish + 1
+            used = used + sepw + items[finish].width
+            added = true
+        end
+
+        if not added then
+            break
+        end
+    end
+
+    local hidden_left  = start - 1
+    local hidden_right = #items - finish
+
+    local parts        = {}
     table.insert(parts, LEFT_PADDING)
 
-    local first = true
-    for i, buf in ipairs(st.buffers) do
-        if not vim.api.nvim_buf_is_valid(buf) then
-            goto continue
-        end
+    -- Left overflow
+    if hidden_left > 0 then
+        table.insert(
+            parts,
+            string.format(
+                "%%#BetterTabsOverflow# %s %%*%%#BetterTabsOverflowCount#+%d%%* ",
+                OVERFLOW_LEFT_ICON,
+                hidden_left
+            )
+        )
+    end
 
-        local bufname = vim.api.nvim_buf_get_name(buf)
-        if bufname == "" then
-            goto continue
-        end
-
-        local name = vim.fn.fnamemodify(bufname, ":t")
-        local modified = vim.bo[buf].modified
-        local diags = format_diagnostics(buf)
-
-        if not first then
+    for i = start, finish do
+        if i > start then
             table.insert(parts, "%#BetterTabsSeparator# " .. SEP .. " %*")
         end
-        first = false
+        table.insert(parts, " " .. items[i].text .. " ")
+    end
 
-        local hl = (i == st.index)
-            and "%#BetterTabsActive#"
-            or "%#BetterTabsInactive#"
-
-        table.insert(parts, " ")
-
-        table.insert(parts, hl .. name .. "%*")
-
-        if diags ~= "" then
-            table.insert(parts, hl .. diags .. "%*")
-        end
-
-        if modified then
-            table.insert(parts, " ")
-            table.insert(parts, "%#BetterTabsModified#[+]%*")
-        end
-
-        table.insert(parts, " ")
-
-        ::continue::
+    -- Right overflow
+    if hidden_right > 0 then
+        table.insert(
+            parts,
+            string.format(
+                " %%#BetterTabsOverflowCount#+%d%%* %%#BetterTabsOverflow#%s %%*",
+                hidden_right,
+                OVERFLOW_RIGHT_ICON
+            )
+        )
     end
 
     table.insert(parts, RIGHT_PADDING)
-
     table.insert(parts, "%#BetterTabsBorder# %*")
 
     return table.concat(parts, "")
