@@ -2,10 +2,12 @@
 
 > A minimal Neovim plugin that implements window-specific buffer management.
 
-`better-tabs` completely changes the Neovim buffer + window workflow. Each window maintains its own buffer list with tab-like navigation and visual indicators.
-
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Neovim](https://img.shields.io/badge/neovim-0.11%2B-green.svg)
+
+`better-tabs` completely changes the Neovim buffer + window workflow. Each window maintains its own buffer list with tab-like navigation and visual indicators.
+
+![Demo](assets/better-gtd.gif)
 
 ## Features
 
