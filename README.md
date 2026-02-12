@@ -7,7 +7,7 @@
 
 `better-tabs` completely changes the Neovim buffer + window workflow. Each window maintains its own buffer list with tab-like navigation and visual indicators.
 
-![Demo](assets/better-gtd.gif)
+![Demo](assets/better-tabs.gif)
 
 ## Features
 
